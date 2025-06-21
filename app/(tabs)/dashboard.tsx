@@ -1,8 +1,8 @@
 import { Picker } from "@react-native-picker/picker";
 import axios from "axios";
-import mqtt from "mqtt/dist/mqtt";
+import mqtt from "mqtt";
 import { useCallback, useEffect, useState } from "react";
-import { Dimensions, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { Dimensions, SafeAreaView, ScrollView, Text, TouchableOpacity, View, StyleSheet } from "react-native";
 import { LineChart } from "react-native-chart-kit";
 
 /************************************************
@@ -72,7 +72,7 @@ export default function Dashboard() {
     client.on("offline", () => setMqttOK(false));
     client.on("error", () => setMqttOK(false));
 
-    client.on("message", (_, payload) => {
+    client.on("message", (_, payload: any) => {
       try {
         const j = JSON.parse(payload.toString());
         setLive({
@@ -103,7 +103,7 @@ export default function Dashboard() {
       const { data } = await axios.get(url);
       const labels: string[] = [];
       const vals: number[] = [];
-      data.feeds.forEach(f => {
+      data.feeds.forEach((f: { field1: string; created_at: string }) => {
         const v = Number(f.field1);
         if (!isNaN(v)) {
           labels.push(new Date(f.created_at).toLocaleTimeString().slice(0,5));
@@ -111,7 +111,13 @@ export default function Dashboard() {
         }
       });
       if (vals.length > 1) setHist({ labels, moisture: vals });
-    } catch (e) { console.log("TS fetch", e.message); }
+    } catch (e) { 
+      if (e instanceof Error) {
+        console.log("TS fetch", e.message);
+      } else {
+        console.log("TS fetch", e);
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -189,18 +195,18 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 /* ---------- Styles ---------- */
-const styles = {
+const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: "#fff",
-    padding: 20,
-    paddingTop: 40,
+    alignItems: "center", // not "centered" or any other string
+    justifyContent: "center",
   },
   h1: {
-    fontSize: 28,
-    fontWeight: "bold",
-    marginBottom: 8,
-    color: "#222",
+    fontSize: 24,
+    fontWeight: "bold", // not just any string
+    marginBottom: 16,
+    color: "#333",
   },
   statRow: {
     flexDirection: "row",
@@ -219,5 +225,5 @@ const styles = {
     fontWeight: "bold",
     fontSize: 18,
   },
-};
+});
 
