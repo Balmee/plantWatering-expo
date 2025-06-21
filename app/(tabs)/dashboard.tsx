@@ -1,7 +1,7 @@
 import { Picker } from "@react-native-picker/picker";
 import axios from "axios";
 import mqtt from "mqtt/dist/mqtt";
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Dimensions, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { LineChart } from "react-native-chart-kit";
 
@@ -22,8 +22,9 @@ import { LineChart } from "react-native-chart-kit";
 
 /* ==================  CONFIG  ================== */
 // ThingSpeak channel ID must be NUMERIC (not the API key!)
-const TS_CHANNEL = 2989896;           // 🔴  replace with your numeric channel id, e.g. 225999
-const TS_READ_KEY = "";             // leave "" if channel is public
+// 🔴  Set your ThingSpeak channel ID in an environment variable or config file for better security and flexibility
+const TS_CHANNEL = Number(process.env.EXPO_PUBLIC_TS_CHANNEL) || 0; // e.g. 225999
+const TS_READ_KEY = process.env.EXPO_PUBLIC_TS_READ_KEY || "";      // leave "" if channel is public
 
 // MQTT — HiveMQ Cloud over WebSocket
 const MQTT_URL  = "wss://a1eef8be216949238865abfec7ed13a2.s1.eu.hivemq.cloud/mqtt";
@@ -35,11 +36,23 @@ const TOPIC_MAN  = "watering/manual";
 
 export default function Dashboard() {
   /* ---------- state ---------- */
-  const [live, setLive]   = useState({ moisture: "-", temperature: "-", humidity: "-", pump: "-" });
+  type LiveState = {
+    moisture: number | null;
+    temperature: number | null;
+    humidity: number | null;
+    pump: string;
+  };
+  const [live, setLive] = useState<LiveState>({
+    moisture: null,
+    temperature: null,
+    humidity: null,
+    pump: "-",
+  });
   const [hist, setHist]   = useState<{ labels: string[]; moisture: number[] }>({ labels: [], moisture: [] });
   const [duration, setDuration] = useState<string>("20");
   const [mqttOK, setMqttOK] = useState(false);
   const chartWidth = Dimensions.get("window").width - 40;
+  const [mqttClient, setMqttClient] = useState<any>(null);
 
   /* ---------- MQTT live stream ---------- */
   useEffect(() => {
@@ -49,6 +62,7 @@ export default function Dashboard() {
       clean: true,
       connectTimeout: 5000
     });
+    setMqttClient(client);
 
     client.on("connect", () => {
       setMqttOK(true);
@@ -62,17 +76,23 @@ export default function Dashboard() {
       try {
         const j = JSON.parse(payload.toString());
         setLive({
-          moisture: String(j.moisture),
-          temperature: String(j.temperature),
-          humidity: String(j.humidity),
-          pump: j.pump_status
+          moisture: typeof j.moisture === "number" ? j.moisture : Number(j.moisture),
+          temperature: typeof j.temperature === "number" ? j.temperature : Number(j.temperature),
+          humidity: typeof j.humidity === "number" ? j.humidity : Number(j.humidity),
+          pump: String(j.pump_status)
         });
       } catch (e) {
-        console.log("JSON parse err", e.message);
+        if (e instanceof Error) {
+          console.log("JSON parse err", e.message);
+        } else {
+          console.log("JSON parse err", e);
+        }
       }
     });
 
-    return () => client.end();
+    return () => {
+      client.end();
+    };
   }, []);
 
   /* ---------- ThingSpeak history ---------- */
@@ -102,10 +122,11 @@ export default function Dashboard() {
 
   /* ---------- manual watering publish ---------- */
   const runManual = () => {
-    const client = mqtt.connect(MQTT_URL, { username: MQTT_USER, password: MQTT_PASS, clean: true, connectTimeout: 4000 });
-    client.on("connect", () => {
-      client.publish(TOPIC_MAN, `RUN:${duration}`, {}, () => client.end());
-    });
+    if (mqttClient && mqttClient.connected) {
+      mqttClient.publish(TOPIC_MAN, `RUN:${duration}`);
+    } else {
+      console.log("MQTT client not connected");
+    }
   };
 
   /* ---------- UI ---------- */
@@ -115,9 +136,9 @@ export default function Dashboard() {
       <Text style={{ color: mqttOK ? "green" : "orange" }}>{mqttOK ? "MQTT live" : "History mode"}</Text>
 
       <View style={styles.statRow}>
-        <Stat label="Moisture" value={live.moisture} />
-        <Stat label="Temp °C" value={live.temperature} />
-        <Stat label="Hum %" value={live.humidity} />
+        <Stat label="Moisture" value={live.moisture !== null ? live.moisture.toString() : "-"} />
+        <Stat label="Temp °C" value={live.temperature !== null ? live.temperature.toString() : "-"} />
+        <Stat label="Hum %" value={live.humidity !== null ? live.humidity.toString() : "-"} />
       </View>
       <Text style={{ marginTop: 4 }}>Pump: {live.pump}</Text>
 
@@ -141,19 +162,62 @@ export default function Dashboard() {
           />
         </ScrollView>
       )}
-
-      {/* Manual control */}
-      <View style={styles.pickerRow}>
-        <Picker selectedValue={duration} onValueChange={setDuration} style={{ flex: 1 }}>
-          {[5, 10, 20, 30, 60].map(s => (
-            <Picker.Item label={`${s} sec`} value={`${s}`} key={s} />
-          ))}
-        </Picker>
-        <TouchableOpacity style={styles.btn} onPress={runManual}>
-          <Text style={styles.btnText}>Run Pump</Text>
-        </TouchableOpacity>
-      </View>
+      <Picker
+        selectedValue={duration}
+        onValueChange={(itemValue: string | number) => setDuration(String(itemValue))}
+        style={{ flex: 1, marginVertical: 16 }}
+      >
+        {["5", "10", "20", "30", "60"].map(s => (
+          <Picker.Item label={`${s} sec`} value={s} key={s} />
+        ))}
+      </Picker>
+      <TouchableOpacity style={styles.btn} onPress={runManual}>
+        <Text style={styles.btnText}>Run Pump</Text>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
+
+/* ---------- Stat component ---------- */
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={{ alignItems: "center", flex: 1 }}>
+      <Text style={{ fontSize: 16, color: "#888" }}>{label}</Text>
+      <Text style={{ fontSize: 22, fontWeight: "bold", color: "#10b981" }}>{value}</Text>
+    </View>
+  );
+}
+
+/* ---------- Styles ---------- */
+const styles = {
+  root: {
+    flex: 1,
+    backgroundColor: "#fff",
+    padding: 20,
+    paddingTop: 40,
+  },
+  h1: {
+    fontSize: 28,
+    fontWeight: "bold",
+    marginBottom: 8,
+    color: "#222",
+  },
+  statRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginVertical: 16,
+  },
+  btn: {
+    backgroundColor: "#10b981",
+    padding: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 16,
+  },
+  btnText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 18,
+  },
+};
 
