@@ -2,7 +2,7 @@ import { Picker } from "@react-native-picker/picker";
 import axios from "axios";
 import mqtt from "mqtt";
 import { useCallback, useEffect, useState } from "react";
-import { Dimensions, SafeAreaView, ScrollView, Text, TouchableOpacity, View, StyleSheet } from "react-native";
+import { Dimensions, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { LineChart } from "react-native-chart-kit";
 
 /************************************************
@@ -23,7 +23,7 @@ import { LineChart } from "react-native-chart-kit";
 /* ==================  CONFIG  ================== */
 // ThingSpeak channel ID must be NUMERIC (not the API key!)
 // 🔴  Set your ThingSpeak channel ID in an environment variable or config file for better security and flexibility
-const TS_CHANNEL = Number(process.env.EXPO_PUBLIC_TS_CHANNEL) || 0; // e.g. 225999
+const TS_CHANNEL = Number(process.env.EXPO_PUBLIC_TS_CHANNEL) || 2989896; 
 const TS_READ_KEY = process.env.EXPO_PUBLIC_TS_READ_KEY || "";      // leave "" if channel is public
 
 // MQTT — HiveMQ Cloud over WebSocket
