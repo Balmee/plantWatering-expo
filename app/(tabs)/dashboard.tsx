@@ -28,7 +28,7 @@ const TS_CHANNEL = Number(process.env.EXPO_PUBLIC_TS_CHANNEL) || 2989896;
 const TS_READ_KEY = process.env.EXPO_PUBLIC_TS_READ_KEY || "";      // leave "" if channel is public
 
 // MQTT — HiveMQ Cloud over WebSocket
-const MQTT_URL  = "wss://a1eef8be216949238865abfec7ed13a2.s1.eu.hivemq.cloud/mqtt";
+const MQTT_URL  = "wss://a1eef8be216949238865abfec7ed13a2.s1.eu.hivemq.cloud:8884/mqtt";
 const MQTT_USER = "Balmee";
 const MQTT_PASS = "WateringP1ant";
 const TOPIC_DATA = "watering/data";
