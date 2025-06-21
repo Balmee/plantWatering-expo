@@ -49,7 +49,12 @@ export default function Dashboard() {
     humidity: null,
     pump: "-",
   });
-  const [hist, setHist]   = useState<{ labels: string[]; moisture: number[] }>({ labels: [], moisture: [] });
+  const [hist, setHist] = useState<{
+  labels: string[];
+  moisture: number[];
+  temp: number[];
+  hum: number[];
+}>({ labels: [], moisture: [], temp: [], hum: [] });
   const [duration, setDuration] = useState<string>("20");
   const [mqttOK, setMqttOK] = useState(false);
   const chartWidth = Dimensions.get("window").width - 40;
@@ -98,26 +103,35 @@ export default function Dashboard() {
 
   /* ---------- ThingSpeak history ---------- */
   const fetchHist = useCallback(async () => {
-    if (!TS_CHANNEL || TS_CHANNEL === 0) return; // channel not set
+    if (!TS_CHANNEL) return;
     try {
-      const url = `https://api.thingspeak.com/channels/${TS_CHANNEL}/feeds.json?results=40${TS_READ_KEY ? `&api_key=${TS_READ_KEY}` : ""}`;
+      const url =
+        `https://api.thingspeak.com/channels/${TS_CHANNEL}/feeds.json?results=40` +
+        (TS_READ_KEY ? `&api_key=${TS_READ_KEY}` : "");
       const { data } = await axios.get(url);
-      const labels: string[] = [];
-      const vals: number[] = [];
-      data.feeds.forEach((f: { field1: string; created_at: string }) => {
-        const v = Number(f.field1);
-        if (!isNaN(v)) {
-          labels.push(new Date(f.created_at).toLocaleTimeString().slice(0,5));
-          vals.push(v);
+
+      const lbls: string[] = [];
+      const mVals: number[] = [];
+      const tVals: number[] = [];
+      const hVals: number[] = [];
+
+      data.feeds.forEach(
+        (f: { created_at: string; field1: string; field2: string; field3: string }) => {
+          lbls.push(new Date(f.created_at).toLocaleTimeString().slice(0, 5));
+
+          const m = Number(f.field1);
+          const t = Number(f.field2);
+          const h = Number(f.field3);
+
+          mVals.push(isNaN(m) ? 0 : m);
+          tVals.push(isNaN(t) ? 0 : t);
+          hVals.push(isNaN(h) ? 0 : h);
         }
-      });
-      if (vals.length > 1) setHist({ labels, moisture: vals });
-    } catch (e) { 
-      if (e instanceof Error) {
-        console.log("TS fetch", e.message);
-      } else {
-        console.log("TS fetch", e);
-      }
+      );
+
+      setHist({ labels: lbls, moisture: mVals, temp: tVals, hum: hVals });
+    } catch (e) {
+      console.log("TS fetch", e);
     }
   }, []);
 
@@ -135,6 +149,21 @@ export default function Dashboard() {
       console.log("MQTT client not connected");
     }
   };
+
+  /* ---------- collapsible panel state ---------- */
+  const [showMoist, setShowMoist] = useState(true);
+  const [showTemp, setShowTemp] = useState(false);
+  const [showHum, setShowHum] = useState(false);
+
+  const chartCfg = {
+    backgroundGradientFrom: "#fff",
+    backgroundGradientTo: "#fff",
+    color: () => "rgba(16,185,129,1)",
+    decimalPlaces: 0,
+    labelColor: () => "#888",
+    propsForLabels: { fontSize: 10 },
+  };
+
 
     /* ---------- UI ---------- */
   return (
@@ -154,37 +183,85 @@ export default function Dashboard() {
         </View>
         <Text style={{ marginTop: 4, textAlign: "center" }}>Pump: {live.pump}</Text>
 
-        {hist.moisture.length > 1 && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={{ marginTop: 20 }}
-          >
-            <LineChart
-            data={{
-              labels: hist.labels.map((label, i) => (i % 5 === 0 ? label : "")), // show every 5th label
-              datasets: [{ data: hist.moisture }],
-            }}
-            width={chartWidth}
-            height={220}
-            withDots={false}
-            segments={4}
-            chartConfig={{
-              backgroundGradientFrom: "#fff",
-              backgroundGradientTo: "#fff",
-              color: () => "rgba(16,185,129,1)",
-              decimalPlaces: 0,
-              propsForLabels: {
-                fontSize: 10,
-              },
-            }}
-            bezier
-            style={{ borderRadius: 16 }}
-          />
+                {/* ──────── Moisture Panel ──────── */}
+        <View style={styles.panel}>
+          <TouchableOpacity onPress={() => setShowMoist(!showMoist)} style={styles.panelHeader}>
+            <Text style={styles.panelTitle}>Moisture {showMoist ? "▾" : "▸"}</Text>
+          </TouchableOpacity>
 
-          </ScrollView>
-        )}
+          {showMoist && hist.moisture.length > 1 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <LineChart
+                data={{
+                  labels: hist.labels.map((l, i) => (i % 5 === 0 ? l : "")),
+                  datasets: [{ data: hist.moisture }],
+                }}
+                width={chartWidth + 60}
+                height={220}
+                withDots={false}
+                segments={4}
+                yLabelsOffset={8}
+                chartConfig={chartCfg}
+                bezier
+                style={styles.chart}
+              />
+            </ScrollView>
+          )}
+        </View>
 
+        {/* ──────── Temperature Panel ──────── */}
+        <View style={styles.panel}>
+          <TouchableOpacity onPress={() => setShowTemp(!showTemp)} style={styles.panelHeader}>
+            <Text style={styles.panelTitle}>Temperature °C {showTemp ? "▾" : "▸"}</Text>
+          </TouchableOpacity>
+
+          {showTemp && hist.temp.length > 1 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <LineChart
+                data={{
+                  labels: hist.labels.map((l, i) => (i % 5 === 0 ? l : "")),
+                  datasets: [{ data: hist.temp }],
+                }}
+                width={chartWidth + 60}
+                height={220}
+                withDots={false}
+                segments={4}
+                yLabelsOffset={8}
+                chartConfig={chartCfg}
+                bezier
+                style={styles.chart}
+              />
+            </ScrollView>
+          )}
+        </View>
+
+        {/* ──────── Humidity Panel ──────── */}
+        <View style={styles.panel}>
+          <TouchableOpacity onPress={() => setShowHum(!showHum)} style={styles.panelHeader}>
+            <Text style={styles.panelTitle}>Humidity % {showHum ? "▾" : "▸"}</Text>
+          </TouchableOpacity>
+
+          {showHum && hist.hum.length > 1 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <LineChart
+                data={{
+                  labels: hist.labels.map((l, i) => (i % 5 === 0 ? l : "")),
+                  datasets: [{ data: hist.hum }],
+                }}
+                width={chartWidth + 60}
+                height={220}
+                withDots={false}
+                segments={4}
+                yLabelsOffset={8}
+                chartConfig={chartCfg}
+                bezier
+                style={styles.chart}
+              />
+            </ScrollView>
+          )}
+        </View>
+
+        {/* ──────── Duration Picker + Button ──────── */}
         <Picker
           selectedValue={duration}
           onValueChange={(v) => setDuration(String(v))}
@@ -250,4 +327,9 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 18,
   },
+  panel: { marginTop: 12 },
+  panelHeader: { paddingVertical: 6 },
+  panelTitle: { fontSize: 16, fontWeight: "bold" },
+  chart: { borderRadius: 16 },
+
 });
