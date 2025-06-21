@@ -52,9 +52,15 @@ export default function Dashboard() {
   const [hist, setHist] = useState<{
   labels: string[];
   moisture: number[];
-  temp: number[];
-  hum: number[];
-}>({ labels: [], moisture: [], temp: [], hum: [] });
+  temperature: number[];
+  humidity: number[];
+}>({
+  labels: [],
+  moisture: [],
+  temperature: [],
+  humidity: [],
+});
+
   const [duration, setDuration] = useState<string>("20");
   const [mqttOK, setMqttOK] = useState(false);
   const chartWidth = Dimensions.get("window").width - 40;
@@ -82,11 +88,12 @@ export default function Dashboard() {
       try {
         const j = JSON.parse(payload.toString());
         setLive({
-          moisture: typeof j.moisture === "number" ? j.moisture : Number(j.moisture),
-          temperature: typeof j.temperature === "number" ? j.temperature : Number(j.temperature),
-          humidity: typeof j.humidity === "number" ? j.humidity : Number(j.humidity),
-          pump: String(j.pump_status)
+          moisture: typeof j.moist === "number" ? j.moist : Number(j.moist),
+          temperature: typeof j.temp === "number" ? j.temp : Number(j.temp),
+          humidity: typeof j.hum === "number" ? j.hum : Number(j.hum),
+          pump: String(j.pump)
         });
+
       } catch (e) {
         if (e instanceof Error) {
           console.log("JSON parse err", e.message);
@@ -110,26 +117,28 @@ export default function Dashboard() {
         (TS_READ_KEY ? `&api_key=${TS_READ_KEY}` : "");
       const { data } = await axios.get(url);
 
-      const lbls: string[] = [];
-      const mVals: number[] = [];
-      const tVals: number[] = [];
-      const hVals: number[] = [];
+      const labels: string[] = [];
+      const moistVals: number[] = [];
+      const tempVals: number[] = [];
+      const humVals: number[] = [];
 
-      data.feeds.forEach(
-        (f: { created_at: string; field1: string; field2: string; field3: string }) => {
-          lbls.push(new Date(f.created_at).toLocaleTimeString().slice(0, 5));
+      data.feeds.forEach((f: { field1: string; field2: string; field3: string; created_at: string }) => {
+        const moist = Number(f.field1);
+        const temp = Number(f.field2);
+        const hum  = Number(f.field3);
+        if (!isNaN(moist)) moistVals.push(moist);
+        if (!isNaN(temp))  tempVals.push(temp);
+        if (!isNaN(hum))   humVals.push(hum);
+        labels.push(new Date(f.created_at).toLocaleTimeString().slice(0, 5));
+      });
 
-          const m = Number(f.field1);
-          const t = Number(f.field2);
-          const h = Number(f.field3);
+      setHist({
+        labels,
+        moisture: moistVals,
+        temperature: tempVals,
+        humidity: humVals,
+      });
 
-          mVals.push(isNaN(m) ? 0 : m);
-          tVals.push(isNaN(t) ? 0 : t);
-          hVals.push(isNaN(h) ? 0 : h);
-        }
-      );
-
-      setHist({ labels: lbls, moisture: mVals, temp: tVals, hum: hVals });
     } catch (e) {
       console.log("TS fetch", e);
     }
@@ -164,6 +173,20 @@ export default function Dashboard() {
     propsForLabels: { fontSize: 10 },
   };
 
+  /* ---------- Chart Preprocessing ---------- */
+  const maxMoist = Math.max(...hist.moisture);
+  const yMaxMoist = Math.ceil((maxMoist + 1) / 5) * 5;
+  const paddedMoist = [...hist.moisture, yMaxMoist];
+
+  const maxTemp = Math.max(...hist.temperature);
+  const yMaxTemp = Math.ceil((maxTemp + 1) / 5) * 5;
+  const paddedTemp = [...hist.temperature, yMaxTemp];
+
+  const maxHum = Math.max(...hist.humidity);
+  const yMaxHum = Math.ceil((maxHum + 1) / 5) * 5;
+  const paddedHum = [...hist.humidity, yMaxHum];
+
+
 
     /* ---------- UI ---------- */
   return (
@@ -183,7 +206,7 @@ export default function Dashboard() {
         </View>
         <Text style={{ marginTop: 4, textAlign: "center" }}>Pump: {live.pump}</Text>
 
-                {/* ──────── Moisture Panel ──────── */}
+        {/* ──────── Moisture Panel ──────── */}
         <View style={styles.panel}>
           <TouchableOpacity onPress={() => setShowMoist(!showMoist)} style={styles.panelHeader}>
             <Text style={styles.panelTitle}>Moisture {showMoist ? "▾" : "▸"}</Text>
@@ -191,19 +214,28 @@ export default function Dashboard() {
 
           {showMoist && hist.moisture.length > 1 && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <Text style={styles.chartTitle}>📈 Moisture History</Text>
               <LineChart
                 data={{
-                  labels: hist.labels.map((l, i) => (i % 5 === 0 ? l : "")),
-                  datasets: [{ data: hist.moisture }],
+                  labels: hist.labels.map((label, i) => (i % 5 === 0 ? label : "")),
+                  datasets: [{ data: paddedMoist }],
                 }}
-                width={chartWidth + 60}
+                width={chartWidth}
                 height={220}
+                fromZero
                 withDots={false}
-                segments={4}
-                yLabelsOffset={8}
-                chartConfig={chartCfg}
+                segments={5}
+                chartConfig={{
+                  backgroundGradientFrom: "#fff",
+                  backgroundGradientTo: "#fff",
+                  color: () => "#10b981",
+                  decimalPlaces: 0,
+                  propsForLabels: {
+                    fontSize: 10,
+                  },
+                }}
                 bezier
-                style={styles.chart}
+                style={{ borderRadius: 16 }}
               />
             </ScrollView>
           )}
@@ -215,21 +247,31 @@ export default function Dashboard() {
             <Text style={styles.panelTitle}>Temperature °C {showTemp ? "▾" : "▸"}</Text>
           </TouchableOpacity>
 
-          {showTemp && hist.temp.length > 1 && (
+          {showTemp && hist.temperature.length > 1 && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <Text style={styles.chartTitle}>🌡️ Temperature History</Text>
               <LineChart
                 data={{
-                  labels: hist.labels.map((l, i) => (i % 5 === 0 ? l : "")),
-                  datasets: [{ data: hist.temp }],
+                  labels: hist.labels.map((label, i) => (i % 5 === 0 ? label : "")),
+                  datasets: [{ data: paddedTemp }],
                 }}
-                width={chartWidth + 60}
+                width={chartWidth}
                 height={220}
+                fromZero
+                yAxisSuffix="°C"
                 withDots={false}
-                segments={4}
-                yLabelsOffset={8}
-                chartConfig={chartCfg}
+                segments={5}
+                chartConfig={{
+                  backgroundGradientFrom: "#fff",
+                  backgroundGradientTo: "#fff",
+                  color: () => "#f97316",
+                  decimalPlaces: 1,
+                  propsForLabels: {
+                    fontSize: 10,
+                  },
+                }}
                 bezier
-                style={styles.chart}
+                style={{ borderRadius: 16 }}
               />
             </ScrollView>
           )}
@@ -241,21 +283,31 @@ export default function Dashboard() {
             <Text style={styles.panelTitle}>Humidity % {showHum ? "▾" : "▸"}</Text>
           </TouchableOpacity>
 
-          {showHum && hist.hum.length > 1 && (
+          {showHum && hist.humidity.length > 1 && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <Text style={styles.chartTitle}>💧 Humidity History</Text>
               <LineChart
                 data={{
-                  labels: hist.labels.map((l, i) => (i % 5 === 0 ? l : "")),
-                  datasets: [{ data: hist.hum }],
+                  labels: hist.labels.map((label, i) => (i % 5 === 0 ? label : "")),
+                  datasets: [{ data: paddedHum }],
                 }}
-                width={chartWidth + 60}
+                width={chartWidth}
                 height={220}
+                fromZero
+                yAxisSuffix="%"
                 withDots={false}
-                segments={4}
-                yLabelsOffset={8}
-                chartConfig={chartCfg}
+                segments={5}
+                chartConfig={{
+                  backgroundGradientFrom: "#fff",
+                  backgroundGradientTo: "#fff",
+                  color: () => "#3b82f6",
+                  decimalPlaces: 0,
+                  propsForLabels: {
+                    fontSize: 10,
+                  },
+                }}
                 bezier
-                style={styles.chart}
+                style={{ borderRadius: 16 }}
               />
             </ScrollView>
           )}
@@ -331,5 +383,11 @@ const styles = StyleSheet.create({
   panelHeader: { paddingVertical: 6 },
   panelTitle: { fontSize: 16, fontWeight: "bold" },
   chart: { borderRadius: 16 },
+  chartTitle: {
+  fontWeight: "bold",
+  fontSize: 16,
+  marginTop: 24,
+  marginBottom: 8,
+},
 
 });
