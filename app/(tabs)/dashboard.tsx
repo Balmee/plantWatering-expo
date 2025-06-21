@@ -1,5 +1,6 @@
 import { Picker } from "@react-native-picker/picker";
 import axios from "axios";
+import { StatusBar } from 'expo-status-bar';
 import mqtt from "mqtt";
 import { useCallback, useEffect, useState } from "react";
 import { Dimensions, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -135,24 +136,35 @@ export default function Dashboard() {
     }
   };
 
-  /* ---------- UI ---------- */
+    /* ---------- UI ---------- */
   return (
     <SafeAreaView style={styles.root}>
-      <Text style={styles.h1}>🌿 Smart Watering</Text>
-      <Text style={{ color: mqttOK ? "green" : "orange" }}>{mqttOK ? "MQTT live" : "History mode"}</Text>
+      <StatusBar style="dark" />
 
-      <View style={styles.statRow}>
-        <Stat label="Moisture" value={live.moisture !== null ? live.moisture.toString() : "-"} />
-        <Stat label="Temp °C" value={live.temperature !== null ? live.temperature.toString() : "-"} />
-        <Stat label="Hum %" value={live.humidity !== null ? live.humidity.toString() : "-"} />
-      </View>
-      <Text style={{ marginTop: 4 }}>Pump: {live.pump}</Text>
+      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+        <Text style={styles.h1}>🌿 Smart Watering</Text>
+        <Text style={{ color: mqttOK ? "green" : "orange", textAlign: "center" }}>
+          {mqttOK ? "MQTT live" : "History mode"}
+        </Text>
 
-      {/* Moisture chart */}
-      {hist.moisture.length > 1 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 20 }}>
-          <LineChart
-            data={{ labels: hist.labels, datasets: [{ data: hist.moisture }] }}
+        <View style={styles.statRow}>
+          <Stat label="Moisture" value={live.moisture?.toString() ?? "-"} />
+          <Stat label="Temp °C" value={live.temperature?.toString() ?? "-"} />
+          <Stat label="Hum %" value={live.humidity?.toString() ?? "-"} />
+        </View>
+        <Text style={{ marginTop: 4, textAlign: "center" }}>Pump: {live.pump}</Text>
+
+        {hist.moisture.length > 1 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ marginTop: 20 }}
+          >
+            <LineChart
+            data={{
+              labels: hist.labels.map((label, i) => (i % 5 === 0 ? label : "")), // show every 5th label
+              datasets: [{ data: hist.moisture }],
+            }}
             width={chartWidth}
             height={220}
             withDots={false}
@@ -162,24 +174,31 @@ export default function Dashboard() {
               backgroundGradientTo: "#fff",
               color: () => "rgba(16,185,129,1)",
               decimalPlaces: 0,
+              propsForLabels: {
+                fontSize: 10,
+              },
             }}
             bezier
             style={{ borderRadius: 16 }}
           />
-        </ScrollView>
-      )}
-      <Picker
-        selectedValue={duration}
-        onValueChange={(itemValue: string | number) => setDuration(String(itemValue))}
-        style={{ flex: 1, marginVertical: 16 }}
-      >
-        {["5", "10", "20", "30", "60"].map(s => (
-          <Picker.Item label={`${s} sec`} value={s} key={s} />
-        ))}
-      </Picker>
-      <TouchableOpacity style={styles.btn} onPress={runManual}>
-        <Text style={styles.btnText}>Run Pump</Text>
-      </TouchableOpacity>
+
+          </ScrollView>
+        )}
+
+        <Picker
+          selectedValue={duration}
+          onValueChange={(v) => setDuration(String(v))}
+          style={styles.picker}
+        >
+          {["5", "10", "20", "30", "60"].map((s) => (
+            <Picker.Item label={`${s} sec`} value={s} key={s} />
+          ))}
+        </Picker>
+
+        <TouchableOpacity style={styles.btn} onPress={runManual}>
+          <Text style={styles.btnText}>Run Pump</Text>
+        </TouchableOpacity>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -199,19 +218,25 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: "#fff",
-    alignItems: "center", // not "centered" or any other string
-    justifyContent: "center",
+    paddingTop: 40,
+    paddingHorizontal: 16,
   },
   h1: {
     fontSize: 24,
-    fontWeight: "bold", // not just any string
+    fontWeight: "bold",
     marginBottom: 16,
+    textAlign: "center",
     color: "#333",
   },
   statRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginVertical: 16,
+  },
+  picker: {
+    height: 50,
+    width: "100%",
+    marginTop: 16,
   },
   btn: {
     backgroundColor: "#10b981",
@@ -226,4 +251,3 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
 });
-
