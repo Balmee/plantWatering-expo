@@ -12,20 +12,23 @@ import { LineChart } from "react-native-chart-kit";
  * • Live sensor stream via MQTT (watering/data)
  * • Historical moisture graph via ThingSpeak
  * • Manual pump control with duration picker
+ *      
+ *     Open Command prompt into Direcrtory:
+ *     cd plantWatering-expo
+ * 
+ *     Dependencies (install once):
+ *     npm install
+ * 
+ *     Open and run mobile app:
+ *     npx expo start
  *
- * 🚀  Add this file to `app/(tabs)/dashboard.tsx` (or any route)
- *
- * 📦  Dependencies (install once):
- *     expo install mqtt axios react-native-chart-kit @react-native-picker/picker
- *
- * ❗  ThingSpeak needs your CHANNEL_ID for reads – fill it below.
  ************************************************/
 
 /* ==================  CONFIG  ================== */
 // ThingSpeak channel ID must be NUMERIC (not the API key!)
-// 🔴  Set your ThingSpeak channel ID in an environment variable or config file for better security and flexibility
+// Setting ThingSpeak channel ID in an environment variable for better security and flexibility
 const TS_CHANNEL = Number(process.env.EXPO_PUBLIC_TS_CHANNEL) || 2989896; 
-const TS_READ_KEY = process.env.EXPO_PUBLIC_TS_READ_KEY || "";      // leave "" if channel is public
+const TS_READ_KEY = process.env.EXPO_PUBLIC_TS_READ_KEY || "";      // leave "" since channel is public
 
 // MQTT — HiveMQ Cloud over WebSocket
 const MQTT_URL  = "wss://a1eef8be216949238865abfec7ed13a2.s1.eu.hivemq.cloud:8884/mqtt";
@@ -206,7 +209,7 @@ export default function Dashboard() {
         </View>
         <Text style={{ marginTop: 4, textAlign: "center" }}>Pump: {live.pump}</Text>
 
-        {/* ──────── Moisture Panel ──────── */}
+        {/* ---------- Moisture Panel ---------- */}
         <View style={styles.panel}>
           <TouchableOpacity onPress={() => setShowMoist(!showMoist)} style={styles.panelHeader}>
             <Text style={styles.panelTitle}>Moisture {showMoist ? "▾" : "▸"}</Text>
@@ -241,7 +244,7 @@ export default function Dashboard() {
           )}
         </View>
 
-        {/* ──────── Temperature Panel ──────── */}
+        {/* ---------- Temperature Panel ---------- */}
         <View style={styles.panel}>
           <TouchableOpacity onPress={() => setShowTemp(!showTemp)} style={styles.panelHeader}>
             <Text style={styles.panelTitle}>Temperature °C {showTemp ? "▾" : "▸"}</Text>
@@ -277,7 +280,7 @@ export default function Dashboard() {
           )}
         </View>
 
-        {/* ──────── Humidity Panel ──────── */}
+        {/* ---------- Humidity Panel ---------- */}
         <View style={styles.panel}>
           <TouchableOpacity onPress={() => setShowHum(!showHum)} style={styles.panelHeader}>
             <Text style={styles.panelTitle}>Humidity % {showHum ? "▾" : "▸"}</Text>
@@ -313,7 +316,7 @@ export default function Dashboard() {
           )}
         </View>
 
-        {/* ──────── Duration Picker + Button ──────── */}
+        {/* ---------- Duration Picker + Button ---------- */}
         <Picker
           selectedValue={duration}
           onValueChange={(v) => setDuration(String(v))}

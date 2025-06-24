@@ -27,7 +27,7 @@ const char* TOPIC_MAN  = "watering/manual";
 #define DHTPIN    4     // D2
 #define DHTTYPE   DHT11
 #define SOILPIN   A0
-const int MOISTURE_THRESHOLD = 400;
+const int MOISTURE_THRESHOLD = 4;
 
 // ---------- Objects ----------
 DHT dht(DHTPIN, DHTTYPE);
@@ -184,7 +184,7 @@ void loop() {
       }
     } else {
       // Not currently watering, check moisture
-      if (moist > MOISTURE_THRESHOLD) {
+      if (moist < MOISTURE_THRESHOLD) {
         autoActive = true;
         autoStartMs = now;
         pumpState = "ON (Auto)";
